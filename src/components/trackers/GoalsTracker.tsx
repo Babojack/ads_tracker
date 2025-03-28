@@ -55,13 +55,13 @@ const GoalTracker: React.FC = () => {
   // Verwende hier "projectGoals" als Key
   const [goals, setGoals] = useLocalStorage<Goal[]>('projectGoals', [{
     id: 1,
-    name: 'Новая цель',
+    name: 'New Goal',
     deadline: new Date().toISOString(),
-    status: 'Не начата',
+    status: 'Not Started',
     image: null,
     milestones: [
-      { id: 1, name: 'Первый этап', completed: false },
-      { id: 2, name: 'Второй этап', completed: false }
+      { id: 1, name: 'First Step', completed: false },
+      { id: 2, name: 'Second Step', completed: false }
     ],
     notes: [],
     order: 1
@@ -106,7 +106,7 @@ const GoalTracker: React.FC = () => {
   const addNewGoal = () => {
     const newGoal: Goal = {
       id: Date.now(),
-      name: 'Новая цель',
+      name: 'New Goal',
       deadline: new Date().toISOString(),
       status: 'Не начата',
       image: null,
@@ -160,7 +160,7 @@ const GoalTracker: React.FC = () => {
                 {goal.image ? (
                   <img
                     src={goal.image}
-                    alt="Цель"
+                    alt="Goal"
                     className="w-full h-24 sm:h-32 object-cover rounded"
                   />
                 ) : (
@@ -192,7 +192,7 @@ const GoalTracker: React.FC = () => {
             </div>
 
             <div className="mb-3">
-              <label className="text-xs sm:text-sm font-semibold block mb-1">Дедлайн</label>
+              <label className="text-xs sm:text-sm font-semibold block mb-1">Deadline</label>
               <input
                 type="date"
                 value={goal.deadline.split('T')[0]}
@@ -205,14 +205,14 @@ const GoalTracker: React.FC = () => {
 
             <div className="space-y-2 mb-3">
               <div className="flex justify-between items-center">
-                <h3 className="text-xs sm:text-sm font-semibold">Этапы</h3>
+                <h3 className="text-xs sm:text-sm font-semibold">Tasks</h3>
                 <button
                   onClick={() => setGoals(goals.map(g =>
                     g.id === goal.id ? {
                       ...g,
                       milestones: [...g.milestones, {
                         id: Date.now(),
-                        name: 'Новый этап',
+                        name: 'New Task',
                         completed: false
                       }]
                     } : g
@@ -261,7 +261,7 @@ const GoalTracker: React.FC = () => {
             <div className="flex-1 flex flex-col min-h-[120px]">
               <input
                 type="text"
-                placeholder="Добавить заметку и нажать Enter..."
+                placeholder="Comments"
                 className="w-full bg-gray-800 rounded p-2 text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
