@@ -122,7 +122,7 @@ const ProjectTracker: React.FC = () => {
   const updateGoalStatus = (goal: Goal) => {
     const hasStarted = goal.milestones.some(m => m.completed);
     const allCompleted = goal.milestones.every(m => m.completed);
-    return allCompleted ? 'Завершена' : (hasStarted ? 'В процессе' : 'Не начата');
+    return allCompleted ? 'Done' : (hasStarted ? 'In Progress' : 'Not Started');
   };
 
   // Funktion zum Hinzufügen eines Bildes

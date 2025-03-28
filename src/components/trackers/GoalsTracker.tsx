@@ -71,7 +71,7 @@ const GoalTracker: React.FC = () => {
   const updateGoalStatus = (goal: Goal) => {
     const hasStarted = goal.milestones.some(m => m.completed);
     const allCompleted = goal.milestones.every(m => m.completed);
-    return allCompleted ? 'Завершена' : (hasStarted ? 'В процессе' : 'Не начата');
+    return allCompleted ? 'Done' : (hasStarted ? 'In Progress' : 'Not Started');
   };
 
   // Funktion zum Hinzufügen eines Bildes
@@ -108,7 +108,7 @@ const GoalTracker: React.FC = () => {
       id: Date.now(),
       name: 'New Goal',
       deadline: new Date().toISOString(),
-      status: 'Не начата',
+      status: 'not started',
       image: null,
       milestones: [],
       notes: [],
@@ -131,7 +131,7 @@ const GoalTracker: React.FC = () => {
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold">Goals</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Project Tracker</h2>
         <div className="flex space-x-2">
           <button
             onClick={addNewGoal}
