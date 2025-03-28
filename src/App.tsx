@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, BarChart2, Target, Brain, Plus, Download, Upload } from 'lucide-react';
+import { Activity, BarChart2, Target, Brain, Plus, Calculator, Download, Upload } from 'lucide-react';
 import ProjectTracker from './components/trackers/ProjectTracker';
 import GoalsTracker from './components/trackers/GoalsTracker';
 import MoodTracker from './components/trackers/MoodTracker';
 import LifeEQTracker from './components/trackers/LifeEQTracker';
 import TodoTracker from './components/trackers/TodoTracker';
+import HouseholdBudgetCalculator from './components/trackers/HouseholdBudgetCalculator';
 
-type TabId = 'projects' | 'goals' | 'mood' | 'lifeEQ' | 'todos';
+type TabId = 'projects' | 'goals' | 'mood' | 'lifeEQ' | 'todos' | 'budget';
 
 interface Tab {
   id: TabId;
@@ -14,11 +15,6 @@ interface Tab {
   Icon: React.FC<any>;
 }
 
-/**
- * Кастомный хук для синхронизации состояния с localStorage.
- * При инициализации пытается загрузить значение из localStorage,
- * а затем записывает новое значение при каждом изменении state.
- */
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -51,6 +47,7 @@ const App: React.FC = () => {
     { id: 'mood', name: 'Mood Tracker', Icon: BarChart2 },
     { id: 'lifeEQ', name: 'LifeEQ Tracker', Icon: Brain },
     { id: 'todos', name: 'ToDo\'s', Icon: Plus },
+    { id: 'budget', name: 'Household Budget', Icon: Calculator },
   ];
 
   const handleTabClick = (tabId: TabId) => {
@@ -65,7 +62,8 @@ const App: React.FC = () => {
       goals: localStorage.getItem('goals'),
       mood: localStorage.getItem('mood'),
       lifeEQ: localStorage.getItem('lifeEQ'),
-      todos: localStorage.getItem('todos')
+      todos: localStorage.getItem('todos'),
+      budget: localStorage.getItem('haushaltsrechner')
     };
 
     const jsonData = JSON.stringify(progressData, null, 2);
@@ -90,10 +88,10 @@ const App: React.FC = () => {
             Object.entries(importedData).forEach(([key, value]) => {
               if (value) localStorage.setItem(key, value as string);
             });
-            window.location.reload(); // Перезагрузка для обновления данных
+            window.location.reload();
           } catch (error) {
-            console.error('Ошибка импорта', error);
-            alert('Не удалось импортировать файл');
+            console.error('Fehler beim Import', error);
+            alert('Import fehlgeschlagen');
           }
         };
         reader.readAsText(file);
@@ -107,7 +105,6 @@ const App: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <nav className="mb-4 sm:mb-6 md:mb-8 flex justify-between items-center">
           <div>
-            {/* Mobile Menu */}
             <div className="md:hidden mb-4">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -141,7 +138,6 @@ const App: React.FC = () => {
                 </svg>
               </button>
 
-              {/* Mobile Menu Dropdown */}
               {isMobileMenuOpen && (
                 <div className="mt-2 bg-gray-800/50 rounded-lg overflow-hidden">
                   {tabs.map((tab) => {
@@ -164,7 +160,6 @@ const App: React.FC = () => {
               )}
             </div>
 
-            {/* Desktop Navigation */}
             <div className="hidden md:block">
               <div className="flex flex-wrap gap-2 justify-center w-full bg-gray-800/50 p-3 sm:p-4 rounded-lg">
                 {tabs.map((tab) => {
@@ -187,7 +182,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Export/Import Buttons */}
           <div className="flex space-x-2">
             <button
               onClick={exportAllProgress}
@@ -212,6 +206,7 @@ const App: React.FC = () => {
           {activeTab === 'mood' && <MoodTracker />}
           {activeTab === 'lifeEQ' && <LifeEQTracker />}
           {activeTab === 'todos' && <TodoTracker />}
+          {activeTab === 'budget' && <HouseholdBudgetCalculator />}
         </div>
       </div>
     </div>
