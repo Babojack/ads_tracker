@@ -3,14 +3,13 @@ import { Plus, X } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
 
-// Интерфейсы
 interface Goal {
   id: number;
   name: string;
   deadline: string;
   status: string;
   image: string | null;
-  difficulty: number; // Schwierigkeitsgrad (1-6)
+  difficulty: number;
   milestones: {
     id: number;
     name: string;
@@ -24,7 +23,6 @@ interface Goal {
   order: number;
 }
 
-// Custom Hook für localStorage
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -51,19 +49,16 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
   return [storedValue, setValue];
 };
 
-// Neuer Component für den Schwierigkeits-Indicator
 interface DifficultyIndicatorProps {
   value: number;
   onChange: (newValue: number) => void;
 }
 
 const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChange }) => {
-  // 6 Kreise
   const circles = [1, 2, 3, 4, 5, 6];
 
   const getColor = (index: number) => {
-    if (index > value) return 'bg-gray-300'; // inaktiv
-    // Aktive Kreise: 1-2: grün, 3-4: gelb, 5-6: rot
+    if (index > value) return 'bg-gray-300';
     if (index <= 2) return 'bg-green-500';
     if (index <= 4) return 'bg-yellow-500';
     return 'bg-red-500';
@@ -86,14 +81,13 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
 type SortOption = 'default' | 'alphabet' | 'date' | 'difficulty';
 
 const ProjectTracker: React.FC = () => {
-  // Verwende hier den eigenen Key für den Project Tracker
   const [goals, setGoals] = useLocalStorage<Goal[]>('projectTrackerGoals', [{
     id: 1,
     name: 'Project Name',
     deadline: new Date().toISOString(),
     status: 'Not started',
     image: null,
-    difficulty: 3, // Standardwert
+    difficulty: 3,
     milestones: [
       { id: 1, name: 'First Step', completed: false },
       { id: 2, name: 'Second Step', completed: false }
@@ -103,7 +97,6 @@ const ProjectTracker: React.FC = () => {
   }]);
   const [sortBy, setSortBy] = useState<SortOption>('default');
 
-  // Sortierfunktion
   const getDisplayedGoals = () => {
     const goalsCopy = [...goals];
     switch (sortBy) {
@@ -118,28 +111,28 @@ const ProjectTracker: React.FC = () => {
     }
   };
 
-  // Funktion zur Aktualisierung des Zielstatus
   const updateGoalStatus = (goal: Goal) => {
     const hasStarted = goal.milestones.some(m => m.completed);
     const allCompleted = goal.milestones.every(m => m.completed);
     return allCompleted ? 'Done' : (hasStarted ? 'In Progress' : 'Not Started');
   };
 
-  // Funktion zum Hinzufügen eines Bildes
   const handleImageUpload = (goalId: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setGoals(goals.map(g =>
-          g.id === goalId ? { ...g, image: reader.result as string } : g
-        ));
+        const base64Image = reader.result as string;
+        setGoals(currentGoals =>
+          currentGoals.map(g =>
+            g.id === goalId ? { ...g, image: base64Image } : g
+          )
+        );
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // Funktion zum Hinzufügen einer Notiz
   const addNote = (goalId: number, note: string) => {
     setGoals(goals.map(g =>
       g.id === goalId ? {
@@ -153,15 +146,14 @@ const ProjectTracker: React.FC = () => {
     ));
   };
 
-  // Funktion zum Hinzufügen eines neuen Ziels
   const addNewGoal = () => {
     const newGoal: Goal = {
       id: Date.now(),
       name: 'Project Name',
       deadline: new Date().toISOString(),
-      status: 'Не начата',
+      status: 'Not started',
       image: null,
-      difficulty: 3, // Standard-Schwierigkeitsgrad
+      difficulty: 3,
       milestones: [],
       notes: [],
       order: goals.length + 1
@@ -169,12 +161,10 @@ const ProjectTracker: React.FC = () => {
     setGoals([...goals, newGoal]);
   };
 
-  // Funktion zum Löschen eines Ziels
   const deleteGoal = (goalId: number) => {
     setGoals(goals.filter(g => g.id !== goalId));
   };
 
-  // Funktion zum Löschen aller Ziele im localStorage
   const clearAllGoals = () => {
     localStorage.removeItem('projectTrackerGoals');
     setGoals([]);
@@ -182,9 +172,8 @@ const ProjectTracker: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header mit Titel und Sortieroptionen */}
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold">Goals</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Project Tracker</h2>
         <div className="flex items-center space-x-4 mt-2 sm:mt-0">
           <select
             value={sortBy}
@@ -194,8 +183,7 @@ const ProjectTracker: React.FC = () => {
             <option value="default">Standard</option>
             <option value="alphabet">Alphabetisch</option>
             <option value="date">Nach Datum</option>
-            <option value="difficulty">Level of difficulty
-            </option>
+            <option value="difficulty">Level of difficulty</option>
           </select>
           <button
             onClick={addNewGoal}
@@ -208,7 +196,6 @@ const ProjectTracker: React.FC = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {getDisplayedGoals().map(goal => {
-          // Berechnung des Fortschritts in Prozent (basierend auf den Meilensteinen)
           const progress = goal.milestones.length
             ? Math.round(goal.milestones.filter(m => m.completed).length / goal.milestones.length * 100)
             : 0;
@@ -229,7 +216,7 @@ const ProjectTracker: React.FC = () => {
                   {goal.image ? (
                     <img
                       src={goal.image}
-                      alt="Цель"
+                      alt="Goal"
                       className="w-full h-24 sm:h-32 object-cover rounded"
                     />
                   ) : (
@@ -260,7 +247,6 @@ const ProjectTracker: React.FC = () => {
                 </div>
               </div>
 
-              {/* Schwierigkeits-Indicator */}
               <div className="mb-3">
                 <span className="block text-xs sm:text-sm font-semibold mb-1">Level of difficulty</span>
                 <DifficultyIndicator
@@ -271,7 +257,6 @@ const ProjectTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Fortschrittsanzeige */}
               <div className="mb-3">
                 <span className="block text-xs sm:text-sm font-semibold mb-1">Progress</span>
                 <div className="w-full bg-gray-300 rounded-full h-2">
