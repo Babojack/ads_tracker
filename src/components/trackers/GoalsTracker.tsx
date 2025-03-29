@@ -3,7 +3,6 @@ import { Plus, X } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
 
-// Интерфейсы
 interface Goal {
   id: number;
   name: string;
@@ -23,7 +22,6 @@ interface Goal {
   order: number;
 }
 
-// Хук для localStorage
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -183,7 +181,11 @@ const GoalTracker: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <span className="text-xs sm:text-sm px-2 py-1 rounded bg-gray-800 whitespace-nowrap">{goal.status}</span>
                 <button
-                  onClick={() => deleteGoal(goal.id)}
+                  onClick={() => {
+                    if(window.confirm("Möchtest du dieses Ziel wirklich löschen?")){
+                      deleteGoal(goal.id);
+                    }
+                  }}
                   className="p-1 hover:bg-gray-600 rounded"
                 >
                   <X className="w-4 h-4" />

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, Download, Upload } from 'lucide-react';
 import Note from '../shared/Note';
 
-// Интерфейсы
 interface MoodEntry {
   id: number;
   mood: {
@@ -19,7 +18,6 @@ interface MoodEntry {
   }[];
 }
 
-// Хук для localStorage (идентичный предыдущим примерам)
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -47,7 +45,6 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
   return [storedValue, setValue];
 };
 
-// Утилиты для экспорта/импорта
 const exportMoodEntries = (entries: MoodEntry[]) => {
   const jsonData = JSON.stringify(entries, null, 2);
   const blob = new Blob([jsonData], { type: 'application/json' });
@@ -57,9 +54,7 @@ const exportMoodEntries = (entries: MoodEntry[]) => {
   link.click();
 };
 
-
 const MoodTracker: React.FC = () => {
-  // Используем localStorage для хранения записей
   const [entries, setEntries] = useLocalStorage<MoodEntry[]>('moodEntries', []);
   const [filter, setFilter] = useState<string>('all');
 
@@ -106,7 +101,7 @@ const MoodTracker: React.FC = () => {
 
   return (
     <div className="w-full space-y-6 p-4">
-      {/* Заголовок и фильтр */}
+      {/* Überschrift und Filter */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-xl sm:text-2xl font-bold">Mood Tracker</h2>
         <div className="flex items-center space-x-2">
@@ -123,7 +118,7 @@ const MoodTracker: React.FC = () => {
             ))}
           </select>
 
-          {/* Кнопки экспорта/импорта */}
+          {/* Export-Button */}
           <div className="flex space-x-2">
             <button
               onClick={() => exportMoodEntries(entries)}
@@ -132,12 +127,11 @@ const MoodTracker: React.FC = () => {
             >
               <Download className="w-4 h-4" />
             </button>
-          
           </div>
         </div>
       </div>
 
-      {/* Кнопки настроения */}
+      {/* Mood-Buttons */}
       <div className="flex flex-wrap sm:flex-nowrap justify-center gap-2 sm:gap-4">
         {moodLevels.map(mood => (
           <button
@@ -154,7 +148,7 @@ const MoodTracker: React.FC = () => {
         ))}
       </div>
 
-      {/* Записи настроения */}
+      {/* Mood-Einträge */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredEntries.map(entry => (
           <div
@@ -172,7 +166,11 @@ const MoodTracker: React.FC = () => {
                   {new Date(entry.timestamp).toLocaleString()}
                 </span>
                 <button
-                  onClick={() => setEntries(entries.filter(e => e.id !== entry.id))}
+                  onClick={() => {
+                    if(window.confirm("Möchtest du diesen Eintrag wirklich löschen?")){
+                      setEntries(entries.filter(e => e.id !== entry.id));
+                    }
+                  }}
                   className="p-1 hover:bg-gray-600 rounded transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -180,7 +178,7 @@ const MoodTracker: React.FC = () => {
               </div>
             </div>
 
-            {/* Поле ввода заметки */}
+            {/* Eingabe für Notizen */}
             <input
               type="text"
               placeholder="Add a note and press Enter..."
@@ -195,7 +193,7 @@ const MoodTracker: React.FC = () => {
               }}
             />
 
-            {/* Список заметок */}
+            {/* Liste der Notizen */}
             <div className="space-y-2 mt-2">
               {entry.notes && entry.notes.map(note => (
                 <Note
@@ -214,7 +212,7 @@ const MoodTracker: React.FC = () => {
         ))}
       </div>
 
-      {/* Сообщение, если нет записей */}
+      {/* Hinweis, falls keine Einträge vorhanden sind */}
       {filteredEntries.length === 0 && (
         <div className="text-center py-8 text-gray-400">
           <p className="text-lg">No mood entries yet.</p>

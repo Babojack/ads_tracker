@@ -71,7 +71,7 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
           key={circle}
           onClick={() => onChange(circle)}
           className={`w-6 h-6 rounded-full ${getColor(circle)} border border-gray-500`}
-          title={`Level of difficulty  ${circle}`}
+          title={`Level of difficulty ${circle}`}
         />
       ))}
     </div>
@@ -239,7 +239,11 @@ const ProjectTracker: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <span className="text-xs sm:text-sm px-2 py-1 rounded bg-gray-800 whitespace-nowrap">{goal.status}</span>
                   <button
-                    onClick={() => deleteGoal(goal.id)}
+                    onClick={() => {
+                      if(window.confirm("Möchtest du dieses Projekt wirklich löschen?")){
+                        deleteGoal(goal.id);
+                      }
+                    }}
                     className="p-1 hover:bg-gray-600 rounded"
                   >
                     <X className="w-4 h-4" />
@@ -317,8 +321,8 @@ const ProjectTracker: React.FC = () => {
                         ...g,
                         milestones: g.id === goal.id
                           ? g.milestones.map(m =>
-                            m.id === milestone.id ? { ...m, name } : m
-                          )
+                              m.id === milestone.id ? { ...m, name } : m
+                            )
                           : g.milestones
                       })))}
                       onDelete={() => setGoals(goals.map(g => ({
