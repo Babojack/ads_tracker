@@ -2,13 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Plus, X, Download, Upload } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 
-// Интерфейс для категории
 interface Category {
   name: string;
   value: number;
 }
 
-// Хук для localStorage (идентичный предыдущему примеру)
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -22,10 +20,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
 
   const setValue = (value: T | ((val: T) => T)) => {
     try {
-      const valueToStore = value instanceof Function
-        ? value(storedValue)
-        : value;
-
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
       localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
@@ -36,10 +31,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
   return [storedValue, setValue];
 };
 
-
-
 const LifeEQTracker: React.FC = () => {
-  // Используем localStorage для хранения категорий
   const [categories, setCategories] = useLocalStorage<Category[]>('lifeEqCategories', [
     { name: 'Health', value: 8 },
     { name: 'Relationships', value: 7 },
@@ -48,23 +40,20 @@ const LifeEQTracker: React.FC = () => {
     { name: 'Growth', value: 7 },
     { name: 'Leisure', value: 6 }
   ]);
-
   const [newCategory, setNewCategory] = useState('');
   const [chartDimension, setChartDimension] = useState({ width: 300, height: 300 });
 
-  // Обновляем размеры графика в зависимости от размера экрана
   useEffect(() => {
     const updateDimensions = () => {
       const width = window.innerWidth;
-      if (width < 640) { // mobile
+      if (width < 640) {
         setChartDimension({ width: 280, height: 280 });
-      } else if (width < 768) { // tablet
+      } else if (width < 768) {
         setChartDimension({ width: 320, height: 320 });
-      } else { // desktop
+      } else {
         setChartDimension({ width: 400, height: 400 });
       }
     };
-
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
@@ -72,9 +61,7 @@ const LifeEQTracker: React.FC = () => {
 
   return (
     <div className="w-full space-y-6 p-4">
-      {/* Основной контейнер с адаптивной сеткой */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Контейнер для графика */}
         <div className="w-full bg-gray-700/50 rounded-lg p-4 flex justify-center items-center min-h-[300px] lg:min-h-[400px]">
           <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={280}>
             <RadarChart data={categories}>
@@ -102,10 +89,7 @@ const LifeEQTracker: React.FC = () => {
             </RadarChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Правая колонка с категориями */}
         <div className="space-y-4">
-          {/* Заголовок и добавление категории */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h2 className="text-xl sm:text-2xl font-bold">Life Balance</h2>
             <div className="flex w-full sm:w-auto space-x-2">
@@ -129,10 +113,6 @@ const LifeEQTracker: React.FC = () => {
               </button>
             </div>
           </div>
-
-
-
-          {/* Список категорий */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
             {categories.map((category, index) => (
               <div key={index} className="bg-gray-700/50 p-4 rounded-lg">
@@ -151,7 +131,7 @@ const LifeEQTracker: React.FC = () => {
                   max="10"
                   value={category.value}
                   onChange={(e) => setCategories(categories.map(c =>
-                    c.name === category.name ? {...c, value: parseInt(e.target.value)} : c
+                    c.name === category.name ? { ...c, value: parseInt(e.target.value) } : c
                   ))}
                   className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
                 />
