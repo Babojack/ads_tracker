@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, X, Star, Archive } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
 
@@ -21,6 +21,8 @@ interface Goal {
     timestamp: string;
   }[];
   order: number;
+  archived: boolean;
+  favorite: boolean;
 }
 
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
@@ -93,21 +95,33 @@ const ProjectTracker: React.FC = () => {
       { id: 2, name: 'Second Step', completed: false }
     ],
     notes: [],
-    order: 1
+    order: 1,
+    archived: false,
+    favorite: false
   }]);
   const [sortBy, setSortBy] = useState<SortOption>('default');
 
-  const getDisplayedGoals = () => {
-    const goalsCopy = [...goals];
+  // Drag and drop state
+  const [draggedGoalId, setDraggedGoalId] = useState<number | null>(null);
+  const [dragOverGoalId, setDragOverGoalId] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragNodeRef = useRef<HTMLDivElement | null>(null);
+  const dragStartPosition = useRef({ x: 0, y: 0 });
+
+  const getActiveGoals = () => goals.filter(g => !g.archived);
+  const getArchivedGoals = () => goals.filter(g => g.archived);
+
+  const sortGoals = (list: Goal[]) => {
+    const sorted = [...list];
     switch (sortBy) {
       case 'alphabet':
-        return goalsCopy.sort((a, b) => a.name.localeCompare(b.name));
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
       case 'date':
-        return goalsCopy.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+        return sorted.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
       case 'difficulty':
-        return goalsCopy.sort((a, b) => b.difficulty - a.difficulty);
+        return sorted.sort((a, b) => b.difficulty - a.difficulty);
       default:
-        return goalsCopy.sort((a, b) => a.order - b.order);
+        return sorted.sort((a, b) => a.order - b.order);
     }
   };
 
@@ -156,7 +170,9 @@ const ProjectTracker: React.FC = () => {
       difficulty: 3,
       milestones: [],
       notes: [],
-      order: goals.length + 1
+      order: goals.length + 1,
+      archived: false,
+      favorite: false
     };
     setGoals([...goals, newGoal]);
   };
@@ -165,10 +181,120 @@ const ProjectTracker: React.FC = () => {
     setGoals(goals.filter(g => g.id !== goalId));
   };
 
-  const clearAllGoals = () => {
-    localStorage.removeItem('projectTrackerGoals');
-    setGoals([]);
+  const toggleArchiveGoal = (goalId: number) => {
+    setGoals(goals.map(g =>
+      g.id === goalId ? { ...g, archived: !g.archived } : g
+    ));
   };
+
+  const toggleFavoriteGoal = (goalId: number) => {
+    setGoals(goals.map(g =>
+      g.id === goalId ? { ...g, favorite: !g.favorite } : g
+    ));
+  };
+
+  // Drag and drop functions
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, goalId: number, node: HTMLDivElement) => {
+    dragStartPosition.current = { x: e.clientX, y: e.clientY };
+    dragNodeRef.current = node;
+
+    setDraggedGoalId(goalId);
+    setIsDragging(true);
+
+    setTimeout(() => {
+      if (dragNodeRef.current) {
+        dragNodeRef.current.style.opacity = '0.4';
+      }
+    }, 0);
+
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(goalId));
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (draggedGoalId === goalId) return;
+
+    setDragOverGoalId(goalId);
+
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (draggedGoalId === goalId) return;
+
+    setDragOverGoalId(goalId);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setDragOverGoalId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetGoalId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (dragNodeRef.current) {
+      dragNodeRef.current.style.opacity = '1';
+    }
+
+    if (draggedGoalId === null || draggedGoalId === targetGoalId) {
+      setIsDragging(false);
+      setDraggedGoalId(null);
+      setDragOverGoalId(null);
+      return;
+    }
+
+    const activeGoals = getActiveGoals();
+    const draggedGoalIndex = activeGoals.findIndex(g => g.id === draggedGoalId);
+    const targetGoalIndex = activeGoals.findIndex(g => g.id === targetGoalId);
+
+    if (draggedGoalIndex < 0 || targetGoalIndex < 0) {
+      setIsDragging(false);
+      setDraggedGoalId(null);
+      setDragOverGoalId(null);
+      return;
+    }
+
+    const newActiveGoals = [...activeGoals];
+    const [removed] = newActiveGoals.splice(draggedGoalIndex, 1);
+    newActiveGoals.splice(targetGoalIndex, 0, removed);
+
+    newActiveGoals.forEach((goal, idx) => {
+      goal.order = idx + 1;
+    });
+
+    const archivedGoals = getArchivedGoals();
+    setGoals([...newActiveGoals, ...archivedGoals]);
+
+    setIsDragging(false);
+    setDraggedGoalId(null);
+    setDragOverGoalId(null);
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+
+    if (dragNodeRef.current) {
+      dragNodeRef.current.style.opacity = '1';
+    }
+
+    setIsDragging(false);
+    setDraggedGoalId(null);
+    setDragOverGoalId(null);
+    dragNodeRef.current = null;
+  };
+
+  const activeGoals = sortGoals(getActiveGoals());
+  const archivedGoals = getArchivedGoals();
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -188,6 +314,7 @@ const ProjectTracker: React.FC = () => {
           <button
             onClick={addNewGoal}
             className="p-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+            aria-label="Add new project"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -195,12 +322,29 @@ const ProjectTracker: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {getDisplayedGoals().map(goal => {
+        {activeGoals.map(goal => {
           const progress = goal.milestones.length
             ? Math.round(goal.milestones.filter(m => m.completed).length / goal.milestones.length * 100)
             : 0;
+
+          const isDragged = draggedGoalId === goal.id;
+          const isDraggedOver = dragOverGoalId === goal.id;
+
           return (
-            <div key={goal.id} className="bg-gray-700/50 p-3 sm:p-4 rounded-lg flex flex-col">
+            <div
+              key={goal.id}
+              className={`bg-gray-700/50 p-3 sm:p-4 rounded-lg flex flex-col transition-all duration-200
+                ${isDragged ? 'opacity-50' : 'opacity-100'}
+                ${isDraggedOver ? 'border-2 border-blue-500 scale-105' : 'border border-transparent'}`}
+              draggable={true}
+              onDragStart={(e) => handleDragStart(e, goal.id, e.currentTarget)}
+              onDragOver={(e) => handleDragOver(e, goal.id)}
+              onDragEnter={(e) => handleDragEnter(e, goal.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, goal.id)}
+              onDragEnd={handleDragEnd}
+              style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+            >
               <div className="relative mb-3 sm:mb-4">
                 <input
                   type="file"
@@ -227,27 +371,52 @@ const ProjectTracker: React.FC = () => {
                 </label>
               </div>
 
-              <div className="flex justify-between items-center mb-3">
-                <input
-                  type="text"
-                  value={goal.name}
-                  onChange={(e) => setGoals(goals.map(g =>
-                    g.id === goal.id ? { ...g, name: e.target.value } : g
-                  ))}
-                  className="bg-transparent font-semibold text-sm sm:text-base outline-none max-w-[60%]"
-                />
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs sm:text-sm px-2 py-1 rounded bg-gray-800 whitespace-nowrap">{goal.status}</span>
-                  <button
-                    onClick={() => {
-                      if(window.confirm("Möchtest du dieses Projekt wirklich löschen?")){
-                        deleteGoal(goal.id);
-                      }
-                    }}
-                    className="p-1 hover:bg-gray-600 rounded"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              <div className="flex flex-col mb-3">
+                <div className="flex justify-between items-center">
+                  <input
+                    type="text"
+                    value={goal.name}
+                    onChange={(e) => setGoals(goals.map(g =>
+                      g.id === goal.id ? { ...g, name: e.target.value } : g
+                    ))}
+                    className="bg-transparent font-semibold text-sm sm:text-base outline-none max-w-full"
+                  />
+                </div>
+
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs px-1 py-1 rounded bg-gray-800 whitespace-nowrap">
+                    {goal.status}
+                  </span>
+
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => toggleFavoriteGoal(goal.id)}
+                      className={`p-1 hover:bg-gray-600 rounded ${goal.favorite ? 'text-yellow-400' : ''}`}
+                      title="Toggle Favorite"
+                      aria-label="Toggle favorite"
+                    >
+                      <Star className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                    <button
+                      onClick={() => toggleArchiveGoal(goal.id)}
+                      className="p-1 hover:bg-gray-600 rounded"
+                      title="Toggle Archive"
+                      aria-label="Toggle archive"
+                    >
+                      <Archive className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm("Möchtest du dieses Projekt wirklich löschen?")) {
+                          deleteGoal(goal.id);
+                        }
+                      }}
+                      className="p-1 hover:bg-gray-600 rounded"
+                      aria-label="Delete project"
+                    >
+                      <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -264,7 +433,7 @@ const ProjectTracker: React.FC = () => {
               <div className="mb-3">
                 <span className="block text-xs sm:text-sm font-semibold mb-1">Progress</span>
                 <div className="w-full bg-gray-300 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                  <div className="bg-blue-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
                 </div>
                 <span className="text-xs">{progress}%</span>
               </div>
@@ -296,6 +465,7 @@ const ProjectTracker: React.FC = () => {
                       } : g
                     ))}
                     className="p-1 hover:bg-gray-600 rounded"
+                    aria-label="Add task"
                   >
                     <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                   </button>
@@ -367,6 +537,103 @@ const ProjectTracker: React.FC = () => {
           );
         })}
       </div>
+
+      {archivedGoals.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4">Archived Projects</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {archivedGoals.map(goal => {
+              const progress = goal.milestones.length
+                ? Math.round((goal.milestones.filter(m => m.completed).length / goal.milestones.length) * 100)
+                : 0;
+              return (
+                <div
+                  key={goal.id}
+                  className="bg-gray-700/50 p-3 sm:p-4 rounded-lg flex flex-col opacity-70"
+                >
+                  <div className="relative mb-3 sm:mb-4">
+                    {goal.image ? (
+                      <img
+                        src={goal.image}
+                        alt="Goal"
+                        className="w-full h-24 sm:h-32 object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-full h-24 sm:h-32 bg-gray-800 rounded flex items-center justify-center">
+                        <Plus className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-sm sm:text-base">
+                        {goal.name}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs px-1 py-1 rounded bg-gray-800 whitespace-nowrap">
+                        {goal.status}
+                      </span>
+
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => toggleArchiveGoal(goal.id)}
+                          className="p-1 hover:bg-gray-600 rounded"
+                          title="Toggle Archive"
+                          aria-label="Unarchive project"
+                        >
+                          <Archive className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm("Möchtest du dieses archivierte Projekt wirklich löschen?")) {
+                              deleteGoal(goal.id);
+                            }
+                          }}
+                          className="p-1 hover:bg-gray-600 rounded"
+                          aria-label="Delete project"
+                        >
+                          <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <span className="block text-xs sm:text-sm font-semibold mb-1">Level of difficulty</span>
+                    <DifficultyIndicator
+                      value={goal.difficulty}
+                      onChange={(newVal) => setGoals(goals.map(g =>
+                        g.id === goal.id ? { ...g, difficulty: newVal } : g
+                      ))}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <span className="block text-xs sm:text-sm font-semibold mb-1">Progress</span>
+                    <div className="w-full bg-gray-300 rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <span className="text-xs">{progress}%</span>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="text-xs sm:text-sm font-semibold block mb-1">Deadline</label>
+                    <input
+                      type="date"
+                      value={goal.deadline.split('T')[0]}
+                      disabled
+                      className="w-full bg-gray-800 rounded p-2 text-sm cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
