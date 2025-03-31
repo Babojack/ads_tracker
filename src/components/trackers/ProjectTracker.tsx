@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, X, Star, Archive } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
@@ -31,7 +31,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
       const item = localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
-      console.error(error);
+      console.error("Error retrieving from localStorage:", error);
       return initialValue;
     }
   });
@@ -41,10 +41,38 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
       const valueToStore = value instanceof Function
         ? value(storedValue)
         : value;
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
+
+      // Versuch, den Wert zu serialisieren
+      const jsonString = JSON.stringify(valueToStore);
+
+      try {
+        localStorage.setItem(key, jsonString);
+        setStoredValue(valueToStore);
+        console.log(`Successfully stored ${jsonString.length} bytes in localStorage`);
+      } catch (storageError) {
+        console.error("Storage error:", storageError);
+        alert("Speicherfehler! Die Daten konnten nicht gespeichert werden. Möglicherweise ist der Speicherplatz voll.");
+
+        // Versuche ohne Bilder zu speichern als Fallback
+        if (Array.isArray(valueToStore)) {
+          const backupData = valueToStore.map((item: any) => ({
+            ...item,
+            image: item.image && item.image.length > 1000 ? null : item.image
+          }));
+
+          try {
+            const backupJson = JSON.stringify(backupData);
+            localStorage.setItem(key, backupJson);
+            setStoredValue(backupData as any);
+            console.log("Fallback storage (without images) succeeded");
+            alert("Bilder konnten nicht gespeichert werden. Funktionalität bleibt erhalten, aber Bilder wurden entfernt.");
+          } catch (backupError) {
+            console.error("Backup storage failed:", backupError);
+          }
+        }
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Serialization error:", error);
     }
   };
 
@@ -108,6 +136,20 @@ const ProjectTracker: React.FC = () => {
   const dragNodeRef = useRef<HTMLDivElement | null>(null);
   const dragStartPosition = useRef({ x: 0, y: 0 });
 
+  // Speicherplatz überwachen
+  useEffect(() => {
+    try {
+      const storageEstimate = (navigator as any).storage?.estimate?.();
+      if (storageEstimate) {
+        storageEstimate.then((estimate: any) => {
+          console.log(`Storage usage: ${estimate.usage / 1024 / 1024} MB of ${estimate.quota / 1024 / 1024} MB`);
+        });
+      }
+    } catch (e) {
+      console.log("Storage estimation not supported");
+    }
+  }, [goals]);
+
   const getActiveGoals = () => goals.filter(g => !g.archived);
   const getArchivedGoals = () => goals.filter(g => g.archived);
 
@@ -134,14 +176,48 @@ const ProjectTracker: React.FC = () => {
   const handleImageUpload = (goalId: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Überprüfe Dateigröße
+      if (file.size > 1024 * 1024) {
+        alert("Das Bild ist zu groß (>1MB). Bitte verwenden Sie ein kleineres Bild.");
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64Image = reader.result as string;
-        setGoals(currentGoals =>
-          currentGoals.map(g =>
-            g.id === goalId ? { ...g, image: base64Image } : g
-          )
-        );
+        const img = new Image();
+        img.onload = () => {
+          // Bild komprimieren
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 500; // Maximale Breite begrenzen
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = Math.floor(height * (MAX_WIDTH / width));
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // JPEG mit reduzierter Qualität
+            const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
+
+            console.log(`Original image size: ${(reader.result as string).length} bytes`);
+            console.log(`Compressed image size: ${compressedImage.length} bytes`);
+
+            setGoals(currentGoals =>
+              currentGoals.map(g =>
+                g.id === goalId ? { ...g, image: compressedImage } : g
+              )
+            );
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -161,20 +237,34 @@ const ProjectTracker: React.FC = () => {
   };
 
   const addNewGoal = () => {
-    const newGoal: Goal = {
-      id: Date.now(),
-      name: 'Project Name',
-      deadline: new Date().toISOString(),
-      status: 'Not started',
-      image: null,
-      difficulty: 3,
-      milestones: [],
-      notes: [],
-      order: goals.length + 1,
-      archived: false,
-      favorite: false
-    };
-    setGoals([...goals, newGoal]);
+    try {
+      const newGoal: Goal = {
+        id: Date.now(),
+        name: 'Project Name',
+        deadline: new Date().toISOString(),
+        status: 'Not started',
+        image: null,
+        difficulty: 3,
+        milestones: [],
+        notes: [],
+        order: goals.length + 1,
+        archived: false,
+        favorite: false
+      };
+
+      const newGoals = [...goals, newGoal];
+      // Teste die Speicherbarkeit
+      const testJson = JSON.stringify(newGoals);
+
+      if (testJson.length > 5000000) { // ~5MB als Sicherheitsgrenze
+        throw new Error("Data size would exceed storage limits");
+      }
+
+      setGoals(newGoals);
+    } catch (error) {
+      console.error("Failed to add new goal:", error);
+      alert("Neues Projekt konnte nicht erstellt werden. Zu viele Daten im Speicher. Bitte löschen Sie einige Projekte oder Bilder.");
+    }
   };
 
   const deleteGoal = (goalId: number) => {
