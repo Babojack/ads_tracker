@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Types for income and expense entries
 interface FinancialEntry {
@@ -12,38 +12,104 @@ interface BudgetData {
   expenses: FinancialEntry[];
 }
 
-// Custom hook for local storage
-export function useLocalStorage<T>(
-  key: string,
-  initialValue: T
-): [T, (value: T | ((val: T) => T)) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
+const DB_NAME = 'householdBudgetDB';
+const DB_VERSION = 1;
+
+// IndexedDB-Hook als Ersatz für localStorage,
+// der alle Daten unter dem Key "data" in einem einzigen Object Store speichert.
+export function useIndexedDB<T>(storeName: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
+  const [data, setData] = useState<T>(initialValue);
+
+  useEffect(() => {
+    let db: IDBDatabase;
+    console.log(`Opening IndexedDB "${DB_NAME}" for store "${storeName}"...`);
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (event) => {
+      db = (event.target as IDBOpenDBRequest).result;
+      console.log('onupgradeneeded - creating store if not existing:', storeName);
+
+      // Einfacher Store ohne keyPath – wir speichern alles unter key "data"
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.createObjectStore(storeName);
+      }
+    };
+
+    request.onsuccess = (event) => {
+      db = (event.target as IDBOpenDBRequest).result;
+      console.log(`IndexedDB opened successfully: ${DB_NAME} / Store: ${storeName}`);
+
+      const transaction = db.transaction(storeName, 'readonly');
+      const store = transaction.objectStore(storeName);
+      const getRequest = store.get('data');
+
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          console.log('Existing data found:', getRequest.result);
+          setData(getRequest.result);
+        } else {
+          console.log('No existing data, using initialValue...');
+          const writeTransaction = db.transaction(storeName, 'readwrite');
+          const writeStore = writeTransaction.objectStore(storeName);
+          writeStore.put(initialValue, 'data');
+        }
+      };
+
+      getRequest.onerror = (e) => {
+        console.error('Error reading from IndexedDB:', e);
+      };
+    };
+
+    request.onerror = (event) => {
+      console.error(`Error opening IndexedDB "${DB_NAME}":`, (event.target as IDBOpenDBRequest).error);
+    };
+
+    return () => {
+      if (db) {
+        console.log(`Closing DB "${DB_NAME}"...`);
+        db.close();
+      }
+    };
+  }, [storeName, initialValue]);
 
   const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function
-        ? value(storedValue)
-        : value;
+    const newValue = value instanceof Function ? value(data) : value;
+    setData(newValue);
 
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
+    console.log('Saving new data to IndexedDB:', newValue);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      // Wir speichern das gesamte "data"-Objekt (in deinem Fall "FinancialEntry[]") unter dem Key "data"
+      const putRequest = store.put(newValue, 'data');
+
+      putRequest.onsuccess = () => {
+        console.log('Data successfully saved to IndexedDB:', newValue);
+      };
+
+      putRequest.onerror = (e) => {
+        console.error('Error saving to IndexedDB:', e);
+      };
+
+      transaction.oncomplete = () => {
+        db.close();
+      };
+    };
+
+    request.onerror = (event) => {
+      console.error('Error opening IndexedDB for saving:', (event.target as IDBOpenDBRequest).error);
+    };
   };
 
-  return [storedValue, setValue];
+  return [data, setValue];
 }
 
-// Utility functions for export and import
+// Utility functions für Export und Import
 export function exportData(data: any, filename: string = 'progress.json') {
   const jsonData = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonData], { type: 'application/json' });
@@ -80,8 +146,8 @@ const HouseholdBudgetCalculator: React.FC = () => {
   const defaultIncomeCategories = ['Salary Person 1', 'Salary Person 2', 'Side Job', 'Other Income'];
   const defaultExpenseCategories = ['Rent/Mortgage', 'Utilities', 'Groceries', 'Transportation', 'Insurance'];
 
-  // Use the custom hook for incomes and expenses
-  const [incomes, setIncomes] = useLocalStorage<FinancialEntry[]>('incomes',
+  // Statt localStorage: useIndexedDB
+  const [incomes, setIncomes] = useIndexedDB<FinancialEntry[]>('incomes',
     defaultIncomeCategories.map(category => ({
       category,
       amount: '0',
@@ -89,7 +155,7 @@ const HouseholdBudgetCalculator: React.FC = () => {
     }))
   );
 
-  const [expenses, setExpenses] = useLocalStorage<FinancialEntry[]>('expenses',
+  const [expenses, setExpenses] = useIndexedDB<FinancialEntry[]>('expenses',
     defaultExpenseCategories.map(category => ({
       category,
       amount: '0',
@@ -104,11 +170,11 @@ const HouseholdBudgetCalculator: React.FC = () => {
     setTimeout(() => setNotification({ message: '', type: '' }), 3000);
   };
 
+  // Summen berechnen
   const calculateTotals = () => {
     const totalIncome = incomes.reduce((sum, entry) => sum + parseFloat(entry.amount || '0'), 0);
     const totalExpenses = expenses.reduce((sum, entry) => sum + parseFloat(entry.amount || '0'), 0);
     const balance = totalIncome - totalExpenses;
-
     return { totalIncome, totalExpenses, balance };
   };
 
@@ -150,26 +216,24 @@ const HouseholdBudgetCalculator: React.FC = () => {
       amount: '0',
       purpose: ''
     }));
-
     const defaultExpenses = defaultExpenseCategories.map(category => ({
       category,
       amount: '0',
       purpose: ''
     }));
-
     setIncomes(defaultIncomes);
     setExpenses(defaultExpenses);
+    showNotification('Data reset.', 'success');
   };
 
   const { totalIncome, totalExpenses, balance } = calculateTotals();
 
-  // Export data function for the component
+  // Export- und Import-Funktionen
   const handleExport = () => {
     const data: BudgetData = { incomes, expenses };
     exportData(data, 'household_budget.json');
   };
 
-  // Import data function for the component
   const handleImport = () => {
     importData((importedData: BudgetData) => {
       if (importedData.incomes && importedData.expenses) {
@@ -187,11 +251,11 @@ const HouseholdBudgetCalculator: React.FC = () => {
       <h1 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Household Budget Calculator</h1>
 
       {notification.message && (
-        <div className={`p-3 sm:p-4 rounded mb-4 ${
-          notification.type === 'success'
-            ? 'bg-green-600 text-white'
-            : 'bg-red-600 text-white'
-        }`}>
+        <div
+          className={`p-3 sm:p-4 rounded mb-4 ${
+            notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}
+        >
           {notification.message}
         </div>
       )}
@@ -201,21 +265,36 @@ const HouseholdBudgetCalculator: React.FC = () => {
           onClick={() => {
             if (window.confirm('Are you sure you want to reset all data?')) {
               resetTables();
-              showNotification('Data reset.', 'success');
             }
           }}
           className="bg-gray-500 text-white px-3 py-2 sm:px-4 sm:py-2 rounded hover:bg-gray-600 text-sm sm:text-base"
         >
           Reset
         </button>
+        <button
+          onClick={handleExport}
+          className="bg-blue-500 text-white px-3 py-2 sm:px-4 sm:py-2 rounded hover:bg-blue-600 text-sm sm:text-base"
+        >
+          Export
+        </button>
+        <button
+          onClick={handleImport}
+          className="bg-blue-500 text-white px-3 py-2 sm:px-4 sm:py-2 rounded hover:bg-blue-600 text-sm sm:text-base"
+        >
+          Import
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        {/* Incomes */}
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-white mb-2 sm:mb-4">Income</h2>
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4">
             {incomes.map((entry, index) => (
-              <div key={index} className="mb-2 sm:mb-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <div
+                key={index}
+                className="mb-2 sm:mb-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2"
+              >
                 <input
                   type="text"
                   value={entry.category}
@@ -255,11 +334,15 @@ const HouseholdBudgetCalculator: React.FC = () => {
           </div>
         </div>
 
+        {/* Expenses */}
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-white mb-2 sm:mb-4">Expenses</h2>
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4">
             {expenses.map((entry, index) => (
-              <div key={index} className="mb-2 sm:mb-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <div
+                key={index}
+                className="mb-2 sm:mb-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2"
+              >
                 <input
                   type="text"
                   value={entry.category}
@@ -300,23 +383,29 @@ const HouseholdBudgetCalculator: React.FC = () => {
         </div>
       </div>
 
+      {/* Zusammenfassung */}
       <div className="mt-4 sm:mt-6 bg-gray-800 rounded-lg p-3 sm:p-4">
         <h2 className="text-lg sm:text-xl font-bold text-white mb-2 sm:mb-4">Summary</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-white">
           <div className="bg-gray-700 p-3 sm:p-4 rounded">
             <h3 className="text-base sm:text-lg font-semibold">Total Income</h3>
-            <p className="text-xl sm:text-2xl font-bold text-green-400">{totalIncome.toFixed(2)} $</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-400">
+              {totalIncome.toFixed(2)} $
+            </p>
           </div>
           <div className="bg-gray-700 p-3 sm:p-4 rounded">
             <h3 className="text-base sm:text-lg font-semibold">Total Expenses</h3>
-            <p className="text-xl sm:text-2xl font-bold text-red-400">{totalExpenses.toFixed(2)} $</p>
+            <p className="text-xl sm:text-2xl font-bold text-red-400">
+              {totalExpenses.toFixed(2)} $
+            </p>
           </div>
           <div className="bg-gray-700 p-3 sm:p-4 rounded">
             <h3 className="text-base sm:text-lg font-semibold">Balance</h3>
-            <p className={`text-xl sm:text-2xl font-bold ${
-              balance > 0 ? 'text-green-400' :
-              balance < 0 ? 'text-red-400' : 'text-white'
-            }`}>
+            <p
+              className={`text-xl sm:text-2xl font-bold ${
+                balance > 0 ? 'text-green-400' : balance < 0 ? 'text-red-400' : 'text-white'
+              }`}
+            >
               {balance.toFixed(2)} $
             </p>
           </div>
