@@ -77,27 +77,38 @@ const WishlistTracker: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: WishlistItem = {
-      id: editingId || `wish-${Date.now()}`,
-      name: itemName,
-      description: itemDescription,
-      priority: itemPriority,
-      price: itemPrice,
-      url: itemUrl,
-      category: itemCategory,
-      targetDate: itemTargetDate,
-      createdAt: editingId
-        ? items.find(item => item.id === editingId)?.createdAt || Date.now()
-        : Date.now(),
-      image: itemImage,
-    };
-    if (editingId) {
-      setItems((prev) => prev.map(item => (item.id === editingId ? newItem : item)));
-    } else {
-      setItems((prev) => [...prev, newItem]);
-    }
+
+    setItems((prevItems) => {
+      const newItem: WishlistItem = {
+        id: editingId || `wish-${Date.now()}`,
+        name: itemName,
+        description: itemDescription,
+        priority: itemPriority,
+        price: itemPrice,
+        url: itemUrl,
+        category: itemCategory,
+        targetDate: itemTargetDate,
+        createdAt: editingId
+          ? prevItems.find(item => item.id === editingId)?.createdAt || Date.now()
+          : Date.now(),
+        image: itemImage,
+      };
+
+      let updatedItems;
+      if (editingId) {
+        updatedItems = prevItems.map(item =>
+          item.id === editingId ? newItem : item
+        );
+      } else {
+        updatedItems = [...prevItems, newItem];
+      }
+
+      return updatedItems;
+    });
+
     resetForm();
   };
+
 
   const startEditing = (item: WishlistItem) => {
     setEditingId(item.id);
