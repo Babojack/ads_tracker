@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Trash2, Edit, Save, X, ExternalLink, DollarSign, Calendar } from 'lucide-react';
 import { useIndexedDB } from './useIndexedDB';
+import { Download, Upload } from 'lucide-react';
+
 
 interface WishlistItem {
   id: string;
@@ -154,11 +156,67 @@ const WishlistTracker: React.FC = () => {
       default: return 'bg-gray-500';
     }
   };
+  // Für Datei-Import
+const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result as string);
+      if (data.items && data.categories) {
+        setItems(data.items);
+        setCategories(data.categories);
+        alert("Import erfolgreich! Seite neu laden nicht vergessen.");
+      } else {
+        alert("Ungültige Datei.");
+      }
+    } catch (err) {
+      alert("Fehler beim Einlesen der Datei.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+// Für Datei-Export
+const handleExportData = () => {
+  const dataStr = JSON.stringify({ items, categories }, null, 2);
+  const blob = new Blob([dataStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "wishlist_export.json";
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
 
   return (
+
     <div className="space-y-6">
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold">Wunschliste</h2>
+      <div className="flex flex-wrap gap-3 items-center">
+  <button
+    onClick={handleExportData}
+    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+  >
+    <Download size={18} /> Prog. Exp
+  </button>
+  <label className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg cursor-pointer flex items-center gap-2">
+    <Upload size={18} /> Pro. Imp
+    <input
+      type="file"
+      accept=".json"
+      onChange={handleImportData}
+      className="hidden"
+    />
+  </label>
+</div>
+
         <div className="flex flex-wrap gap-2">
           <select
             className="bg-gray-700 text-white px-3 py-2 rounded-lg"
@@ -309,6 +367,7 @@ const WishlistTracker: React.FC = () => {
           </form>
         </div>
       )}
+
       <div className="bg-gray-700 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3">Kategorien verwalten</h3>
         <div className="flex flex-wrap gap-2 mb-4">
@@ -334,7 +393,9 @@ const WishlistTracker: React.FC = () => {
           </button>
         </div>
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+
         {sortedItems.length === 0 ? (
           <div className="col-span-full text-center py-8 bg-gray-700 rounded-lg">
             <p className="text-gray-400">Keine Wünsche in dieser Kategorie gefunden.</p>
@@ -410,7 +471,9 @@ const WishlistTracker: React.FC = () => {
         )}
       </div>
     </div>
+
   );
+
 };
 
 export default WishlistTracker;
