@@ -185,22 +185,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex space-x-2">
-            <button
-              onClick={exportAllProgress}
-              className="bg-green-500 hover:bg-green-600 p-2 rounded-lg"
-              title="Export All Progress"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              onClick={importAllProgress}
-              className="bg-blue-500 hover:bg-blue-600 p-2 rounded-lg"
-              title="Import All Progress"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-          </div>
         </nav>
 
         <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 md:p-6">
