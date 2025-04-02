@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, BarChart2, Target, Brain, Plus, Calculator, Download, Upload } from 'lucide-react';
+import { Activity, BarChart2, Target, Brain, Plus, Calculator, Download, Upload, Gift } from 'lucide-react';
 import ProjectTracker from './components/trackers/ProjectTracker';
 import GoalsTracker from './components/trackers/GoalsTracker';
 import MoodTracker from './components/trackers/MoodTracker';
 import LifeEQTracker from './components/trackers/LifeEQTracker';
 import TodoTracker from './components/trackers/TodoTracker';
 import HouseholdBudgetCalculator from './components/trackers/HouseholdBudgetCalculator';
+import WishlistTracker from './components/trackers/WishlistTracker';
 
-type TabId = 'projects' | 'goals' | 'mood' | 'lifeEQ' | 'todos' | 'budget';
+type TabId = 'projects' | 'goals' | 'mood' | 'lifeEQ' | 'todos' | 'budget' | 'wishlist';
 
 interface Tab {
   id: TabId;
@@ -48,6 +49,7 @@ const App: React.FC = () => {
     { id: 'lifeEQ', name: 'LifeEQ Tracker', Icon: Brain },
     { id: 'todos', name: 'ToDo\'s', Icon: Plus },
     { id: 'budget', name: 'Household Budget', Icon: Calculator },
+    { id: 'wishlist', name: 'Wunschliste', Icon: Gift },
   ];
 
   const handleTabClick = (tabId: TabId) => {
@@ -63,7 +65,8 @@ const App: React.FC = () => {
       mood: localStorage.getItem('mood'),
       lifeEQ: localStorage.getItem('lifeEQ'),
       todos: localStorage.getItem('todos'),
-      budget: localStorage.getItem('haushaltsrechner')
+      budget: localStorage.getItem('haushaltsrechner'),
+      wishlist: localStorage.getItem('wishlist')
     };
 
     const jsonData = JSON.stringify(progressData, null, 2);
@@ -207,6 +210,7 @@ const App: React.FC = () => {
           {activeTab === 'lifeEQ' && <LifeEQTracker />}
           {activeTab === 'todos' && <TodoTracker />}
           {activeTab === 'budget' && <HouseholdBudgetCalculator />}
+          {activeTab === 'wishlist' && <WishlistTracker />}
         </div>
       </div>
     </div>
