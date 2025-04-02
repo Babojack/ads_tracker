@@ -1,11 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  FormEvent,
-  ChangeEvent,
-  Dispatch,
-  SetStateAction,
-} from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import {
   Trash2,
   Edit,
@@ -18,22 +11,9 @@ import {
   Upload,
 } from 'lucide-react';
 
-/**************************************
- *  1) Korriegierter useIndexedDB-Hook *
- **************************************/
 const DB_NAME = 'projectTrackerDB';
 const DB_VERSION = 1;
 
-/**
- * useIndexedDB
- *
- * Speichert `value` im jeweils angegebenen Objektstore `storeName`,
- * immer unter dem Eintrag { id: 'data', value: ... }.
- *
- * Beispiel:
- *   const [items, setItems] = useIndexedDB<WishlistItem[]>('wishlist', []);
- *   const [cats, setCats]   = useIndexedDB<Category[]>('wishlist_categories', []);
- */
 function useIndexedDB<T>(
   storeName: string,
   initialValue: T
@@ -41,14 +21,12 @@ function useIndexedDB<T>(
   const [data, setData] = useState<T>(initialValue);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialisiere die Datenbank und lade Daten beim ersten Render
   useEffect(() => {
     let db: IDBDatabase | null = null;
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
       db = (event.target as IDBOpenDBRequest).result;
-      // Falls der gewünschte Store noch nicht existiert, erstellen:
       if (!db.objectStoreNames.contains(storeName)) {
         db.createObjectStore(storeName, { keyPath: 'id' });
       }
@@ -61,11 +39,9 @@ function useIndexedDB<T>(
       const getRequest = store.get('data');
 
       getRequest.onsuccess = () => {
-        // Falls wir schon mal etwas gespeichert haben:
         if (getRequest.result) {
           setData(getRequest.result.value);
         } else {
-          // Erstes Mal: lege { id: 'data', value: initialValue } an
           const writeTransaction = db!.transaction(storeName, 'readwrite');
           const writeStore = writeTransaction.objectStore(storeName);
           const putRequest = writeStore.put({ id: 'data', value: initialValue });
@@ -88,18 +64,14 @@ function useIndexedDB<T>(
     };
 
     request.onerror = (event) => {
-      console.error(
-        'Error opening IndexedDB',
-        (event.target as IDBOpenDBRequest).error
-      );
+      console.error('Error opening IndexedDB', (event.target as IDBOpenDBRequest).error);
       setIsInitialized(true);
     };
 
-    // Cleanup beim Unmount
     return () => {
       if (db) db.close();
     };
-  }, [storeName]); // Entferne initialValue aus den Abhängigkeiten
+  }, [storeName]);
 
   const saveData = (valueOrFn: T | ((prevVal: T) => T)) => {
     const newValue = typeof valueOrFn === 'function' ? (valueOrFn as Function)(data) : valueOrFn;
@@ -126,19 +98,13 @@ function useIndexedDB<T>(
     };
 
     request.onerror = (event) => {
-      console.error(
-        'Error opening IndexedDB for saving',
-        (event.target as IDBOpenDBRequest).error
-      );
+      console.error('Error opening IndexedDB for saving', (event.target as IDBOpenDBRequest).error);
     };
   };
 
   return [data, saveData];
 }
 
-/***********************************
- * 2) Typen für deine Wunschliste *
- ***********************************/
 interface WishlistItem {
   id: string;
   name: string;
@@ -157,24 +123,19 @@ interface Category {
   name: string;
 }
 
-/***************************************
- * 3) Hauptkomponente: WishlistTracker *
- ***************************************/
 const WishlistTracker: React.FC = () => {
-  // State aus deinem useIndexedDB-Hook
   const [items, setItems] = useIndexedDB<WishlistItem[]>('wishlist', []);
   const [categories, setCategories] = useIndexedDB<Category[]>(
     'wishlist_categories',
     [
-      { id: 'tech', name: 'Technik' },
-      { id: 'kleidung', name: 'Kleidung' },
+      { id: 'tech', name: 'Technology' },
+      { id: 'kleidung', name: 'Clothing' },
       { id: 'hobby', name: 'Hobby' },
-      { id: 'haushalt', name: 'Haushalt' },
-      { id: 'sonstiges', name: 'Sonstiges' },
+      { id: 'haushalt', name: 'Household' },
+      { id: 'sonstiges', name: 'Miscellaneous' },
     ]
   );
 
-  // Formularstates
   const [newCategory, setNewCategory] = useState('');
   const [filter, setFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('date');
@@ -189,23 +150,18 @@ const WishlistTracker: React.FC = () => {
   const [itemTargetDate, setItemTargetDate] = useState('');
   const [itemImage, setItemImage] = useState<string | undefined>(undefined);
 
-  // Falls keine Kategorie ausgewählt ist, nimm die erste
   useEffect(() => {
     if (!itemCategory && categories.length > 0) {
       setItemCategory(categories[0].id);
     }
   }, [categories]);
 
-  /***************************************
-   *   KATEGORIE HINZUFÜGEN              *
-   ***************************************/
   const handleAddCategory = () => {
     if (newCategory.trim() === '') return;
     const categoryId = newCategory.toLowerCase().replace(/\s+/g, '-');
 
     setCategories((prev) => {
       const updated = [...prev];
-      // Nur hinzufügen, wenn nicht bereits vorhanden
       if (!updated.find((cat) => cat.id === categoryId)) {
         updated.push({ id: categoryId, name: newCategory });
       }
@@ -215,9 +171,6 @@ const WishlistTracker: React.FC = () => {
     setNewCategory('');
   };
 
-  /***************************************
-   *   FORMULAR ZURÜCKSETZEN             *
-   ***************************************/
   const resetForm = () => {
     setItemName('');
     setItemDescription('');
@@ -231,9 +184,6 @@ const WishlistTracker: React.FC = () => {
     setEditingId(null);
   };
 
-  /***************************************
-   *   BILD HOCHLADEN                    *
-   ***************************************/
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,14 +196,10 @@ const WishlistTracker: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  /***************************************
-   *   SPEICHERN (Submit)                *
-   ***************************************/
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
     setItems((prevItems) => {
-      // Bearbeitung?
       const existing = editingId ? prevItems.find((x) => x.id === editingId) : undefined;
       const newItem: WishlistItem = {
         id: editingId || `wish-${Date.now()}`,
@@ -270,10 +216,8 @@ const WishlistTracker: React.FC = () => {
 
       let updated: WishlistItem[];
       if (editingId) {
-        // Item ersetzen
         updated = prevItems.map((it) => (it.id === editingId ? newItem : it));
       } else {
-        // Neu hinzufügen
         updated = [...prevItems, newItem];
       }
       return updated;
@@ -282,9 +226,6 @@ const WishlistTracker: React.FC = () => {
     resetForm();
   };
 
-  /***************************************
-   *   BEARBEITEN STARTEN                *
-   ***************************************/
   const startEditing = (item: WishlistItem) => {
     setEditingId(item.id);
     setItemName(item.name);
@@ -298,16 +239,10 @@ const WishlistTracker: React.FC = () => {
     setIsAdding(true);
   };
 
-  /***************************************
-   *   LÖSCHEN                            *
-   ***************************************/
   const deleteItem = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  /***************************************
-   *   EXPORT / IMPORT                    *
-   ***************************************/
   const handleImportData = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -318,13 +253,13 @@ const WishlistTracker: React.FC = () => {
         const json = reader.result as string;
         const data = JSON.parse(json);
         if (!Array.isArray(data.items) || !Array.isArray(data.categories)) {
-          throw new Error('JSON-Format ungültig: items / categories fehlen');
+          throw new Error('Invalid JSON format: items / categories missing');
         }
         setItems(data.items);
         setCategories(data.categories);
-        alert('Import erfolgreich!');
+        alert('Import successful!');
       } catch (err) {
-        alert('Fehler beim Importieren!');
+        alert('Error during import!');
         console.error(err);
       }
     };
@@ -340,22 +275,17 @@ const WishlistTracker: React.FC = () => {
       const jsonStr = JSON.stringify(exportObj, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-
       const link = document.createElement('a');
       link.href = url;
       link.download = 'wishlist_backup.json';
       link.click();
-
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Fehler beim Exportieren');
+      alert('Error during export');
       console.error(err);
     }
   };
 
-  /***************************************
-   *   FILTERN + SORTIEREN               *
-   ***************************************/
   const filteredItems = items.filter(
     (item) => filter === 'all' || item.category === filter
   );
@@ -385,15 +315,10 @@ const WishlistTracker: React.FC = () => {
     }
   };
 
-  /***************************************
-   *   RENDER                             *
-   ***************************************/
   return (
     <div className="space-y-6 p-4">
-      {/* Kopfbereich (Export/Import) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold">Wunschliste (IndexedDB)</h2>
-
+        <h2 className="text-2xl font-bold">Wishlist</h2>
         <div className="flex flex-wrap gap-3 items-center">
           <button
             onClick={handleExportData}
@@ -401,20 +326,13 @@ const WishlistTracker: React.FC = () => {
           >
             <Download size={18} /> Export
           </button>
-
           <label className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer">
             <Upload size={18} /> Import
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportData}
-              className="hidden"
-            />
+            <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
           </label>
         </div>
       </div>
 
-      {/* Filter + Sortierung */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-wrap gap-2">
           <select
@@ -422,7 +340,7 @@ const WishlistTracker: React.FC = () => {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
-            <option value="all">Alle Kategorien</option>
+            <option value="all">All Categories</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {cat.name}
@@ -435,38 +353,33 @@ const WishlistTracker: React.FC = () => {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >
-            <option value="date">Nach Datum</option>
-            <option value="price">Nach Preis</option>
-            <option value="priority">Nach Priorität</option>
+            <option value="date">By Date</option>
+            <option value="price">By Price</option>
+            <option value="priority">By Priority</option>
           </select>
 
           <button
             onClick={() => setIsAdding(true)}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
           >
-            Neuer Wunsch
+            New Wish
           </button>
         </div>
       </div>
 
-      {/* Formular zum Hinzufügen/Bearbeiten */}
       {isAdding && (
         <div className="bg-gray-700 rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">
-              {editingId ? 'Wunsch bearbeiten' : 'Neuen Wunsch hinzufügen'}
+              {editingId ? 'Edit Wish' : 'Add New Wish'}
             </h3>
-            <button
-              onClick={resetForm}
-              className="text-gray-400 hover:text-white"
-            >
+            <button onClick={resetForm} className="text-gray-400 hover:text-white">
               <X size={20} />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Name */}
               <div>
                 <label className="block text-sm font-medium mb-1">Name*</label>
                 <input
@@ -478,9 +391,8 @@ const WishlistTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Kategorie */}
               <div>
-                <label className="block text-sm font-medium mb-1">Kategorie</label>
+                <label className="block text-sm font-medium mb-1">Category</label>
                 <select
                   value={itemCategory}
                   onChange={(e) => setItemCategory(e.target.value)}
@@ -494,9 +406,8 @@ const WishlistTracker: React.FC = () => {
                 </select>
               </div>
 
-              {/* Preis */}
               <div>
-                <label className="block text-sm font-medium mb-1">Preis (€)</label>
+                <label className="block text-sm font-medium mb-1">Price (€)</label>
                 <input
                   type="text"
                   value={itemPrice}
@@ -506,9 +417,8 @@ const WishlistTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Priorität */}
               <div>
-                <label className="block text-sm font-medium mb-1">Priorität</label>
+                <label className="block text-sm font-medium mb-1">Priority</label>
                 <select
                   value={itemPriority}
                   onChange={(e) =>
@@ -516,13 +426,12 @@ const WishlistTracker: React.FC = () => {
                   }
                   className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg"
                 >
-                  <option value="niedrig">Niedrig</option>
-                  <option value="mittel">Mittel</option>
-                  <option value="hoch">Hoch</option>
+                  <option value="niedrig">Low</option>
+                  <option value="mittel">Medium</option>
+                  <option value="hoch">High</option>
                 </select>
               </div>
 
-              {/* URL */}
               <div>
                 <label className="block text-sm font-medium mb-1">URL</label>
                 <input
@@ -534,9 +443,8 @@ const WishlistTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Zieldatum */}
               <div>
-                <label className="block text-sm font-medium mb-1">Zieldatum</label>
+                <label className="block text-sm font-medium mb-1">Target Date</label>
                 <input
                   type="date"
                   value={itemTargetDate}
@@ -545,9 +453,8 @@ const WishlistTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Bild */}
               <div>
-                <label className="block text-sm font-medium mb-1">Bild hinzufügen</label>
+                <label className="block text-sm font-medium mb-1">Upload Image</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -557,9 +464,8 @@ const WishlistTracker: React.FC = () => {
               </div>
             </div>
 
-            {/* Beschreibung */}
             <div>
-              <label className="block text-sm font-medium mb-1">Beschreibung</label>
+              <label className="block text-sm font-medium mb-1">Description</label>
               <textarea
                 value={itemDescription}
                 onChange={(e) => setItemDescription(e.target.value)}
@@ -574,28 +480,24 @@ const WishlistTracker: React.FC = () => {
                 onClick={resetForm}
                 className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg"
               >
-                Abbrechen
+                Cancel
               </button>
               <button
                 type="submit"
                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1"
               >
-                <Save size={18} /> Speichern
+                <Save size={18} /> Save
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Kategorien verwalten */}
       <div className="bg-gray-700 rounded-lg p-4">
-        <h3 className="text-lg font-semibold mb-3">Kategorien verwalten</h3>
+        <h3 className="text-lg font-semibold mb-3">Manage Categories</h3>
         <div className="flex flex-wrap gap-2 mb-4">
           {categories.map((cat) => (
-            <span
-              key={cat.id}
-              className="bg-gray-600 px-3 py-1 rounded-lg"
-            >
+            <span key={cat.id} className="bg-gray-600 px-3 py-1 rounded-lg">
               {cat.name}
             </span>
           ))}
@@ -606,53 +508,39 @@ const WishlistTracker: React.FC = () => {
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-lg"
-            placeholder="Neue Kategorie..."
+            placeholder="New Category..."
           />
           <button
             onClick={handleAddCategory}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
           >
-            Hinzufügen
+            Add
           </button>
         </div>
       </div>
 
-      {/* Liste der Wünsche */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {sortedItems.length === 0 ? (
           <div className="col-span-full text-center py-8 bg-gray-700 rounded-lg">
-            <p className="text-gray-400">Keine Wünsche in dieser Kategorie gefunden.</p>
+            <p className="text-gray-400">No wishes found in this category.</p>
           </div>
         ) : (
           sortedItems.map((item) => (
-            <div
-              key={item.id}
-              className="bg-gray-700 rounded-lg p-4 flex flex-col h-full"
-            >
+            <div key={item.id} className="bg-gray-700 rounded-lg p-4 flex flex-col h-full">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-lg font-semibold">{item.name}</h3>
                 <div className="flex gap-1">
-                  <button
-                    onClick={() => startEditing(item)}
-                    className="text-blue-400 hover:text-blue-300 p-1"
-                  >
+                  <button onClick={() => startEditing(item)} className="text-blue-400 hover:text-blue-300 p-1">
                     <Edit size={18} />
                   </button>
-                  <button
-                    onClick={() => deleteItem(item.id)}
-                    className="text-red-400 hover:text-red-300 p-1"
-                  >
+                  <button onClick={() => deleteItem(item.id)} className="text-red-400 hover:text-red-300 p-1">
                     <Trash2 size={18} />
                   </button>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2 mb-2">
-                <span
-                  className={`text-xs px-2 py-1 rounded ${getPriorityColor(
-                    item.priority
-                  )}`}
-                >
+                <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(item.priority)}`}>
                   {item.priority}
                 </span>
                 {categories.find((c) => c.id === item.category) && (
@@ -664,11 +552,7 @@ const WishlistTracker: React.FC = () => {
 
               {item.image && (
                 <div className="mb-2">
-                  <img
-                    src={item.image}
-                    alt="Wish Item"
-                    className="max-w-full h-auto rounded"
-                  />
+                  <img src={item.image} alt="Wish Item" className="max-w-full h-auto rounded" />
                 </div>
               )}
 
@@ -688,9 +572,7 @@ const WishlistTracker: React.FC = () => {
                 {item.targetDate && (
                   <div className="flex items-center gap-1 text-sm">
                     <Calendar size={14} className="text-blue-400" />
-                    <span>
-                      {new Date(item.targetDate).toLocaleDateString()}
-                    </span>
+                    <span>{new Date(item.targetDate).toLocaleDateString()}</span>
                   </div>
                 )}
                 {item.url && (
