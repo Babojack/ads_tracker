@@ -58,7 +58,7 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
 type SortOption = 'default' | 'alphabet' | 'date' | 'difficulty';
 
 const ProjectTracker: React.FC = () => {
-  const [goals, setGoals] = useIndexedDB<Goal[]>('projectTrackerGoals', [{
+  const initialGoals = [{
     id: 1,
     name: 'Project Name',
     deadline: new Date().toISOString(),
@@ -73,7 +73,9 @@ const ProjectTracker: React.FC = () => {
     order: 1,
     archived: false,
     favorite: false
-  }]);
+  }];
+
+  const [goals, setGoals] = useIndexedDB<Goal[]>('projectTrackerGoals', initialGoals);
   const [sortBy, setSortBy] = useState<SortOption>('default');
 
   // Drag and drop state
@@ -112,18 +114,17 @@ const ProjectTracker: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64Image = reader.result as string;
-        setGoals(currentGoals =>
-          currentGoals.map(g =>
-            g.id === goalId ? { ...g, image: base64Image } : g
-          )
+        const updatedGoals = goals.map(g =>
+          g.id === goalId ? { ...g, image: base64Image } : g
         );
+        setGoals(updatedGoals);
       };
       reader.readAsDataURL(file);
     }
   };
 
   const addNote = (goalId: number, note: string) => {
-    setGoals(goals.map(g =>
+    const updatedGoals = goals.map(g =>
       g.id === goalId ? {
         ...g,
         notes: [{
@@ -132,7 +133,8 @@ const ProjectTracker: React.FC = () => {
           timestamp: new Date().toISOString()
         }, ...g.notes]
       } : g
-    ));
+    );
+    setGoals(updatedGoals);
   };
 
   const addNewGoal = () => {
@@ -149,23 +151,27 @@ const ProjectTracker: React.FC = () => {
       archived: false,
       favorite: false
     };
-    setGoals([...goals, newGoal]);
+    const updatedGoals = [...goals, newGoal];
+    setGoals(updatedGoals);
   };
 
   const deleteGoal = (goalId: number) => {
-    setGoals(goals.filter(g => g.id !== goalId));
+    const updatedGoals = goals.filter(g => g.id !== goalId);
+    setGoals(updatedGoals);
   };
 
   const toggleArchiveGoal = (goalId: number) => {
-    setGoals(goals.map(g =>
+    const updatedGoals = goals.map(g =>
       g.id === goalId ? { ...g, archived: !g.archived } : g
-    ));
+    );
+    setGoals(updatedGoals);
   };
 
   const toggleFavoriteGoal = (goalId: number) => {
-    setGoals(goals.map(g =>
+    const updatedGoals = goals.map(g =>
       g.id === goalId ? { ...g, favorite: !g.favorite } : g
-    ));
+    );
+    setGoals(updatedGoals);
   };
 
   // Drag and drop functions
@@ -232,7 +238,8 @@ const ProjectTracker: React.FC = () => {
       goal.order = idx + 1;
     });
     const archivedGoals = getArchivedGoals();
-    setGoals([...newActiveGoals, ...archivedGoals]);
+    const updatedGoals = [...newActiveGoals, ...archivedGoals];
+    setGoals(updatedGoals);
     setIsDragging(false);
     setDraggedGoalId(null);
     setDragOverGoalId(null);
@@ -249,7 +256,7 @@ const ProjectTracker: React.FC = () => {
     dragNodeRef.current = null;
   };
 
-  // New export/import functions using IndexedDB state
+  // Export/import functions using IndexedDB state
   const handleExportProgress = () => {
     try {
       const exportObj = { goals };
@@ -382,9 +389,12 @@ const ProjectTracker: React.FC = () => {
                   <input
                     type="text"
                     value={goal.name}
-                    onChange={(e) => setGoals(goals.map(g =>
-                      g.id === goal.id ? { ...g, name: e.target.value } : g
-                    ))}
+                    onChange={(e) => {
+                      const updatedGoals = goals.map(g =>
+                        g.id === goal.id ? { ...g, name: e.target.value } : g
+                      );
+                      setGoals(updatedGoals);
+                    }}
                     className="bg-transparent font-semibold text-sm sm:text-base outline-none max-w-full"
                   />
                 </div>
@@ -429,9 +439,12 @@ const ProjectTracker: React.FC = () => {
                 <span className="block text-xs sm:text-sm font-semibold mb-1">Level of difficulty</span>
                 <DifficultyIndicator
                   value={goal.difficulty}
-                  onChange={(newVal) => setGoals(goals.map(g =>
-                    g.id === goal.id ? { ...g, difficulty: newVal } : g
-                  ))}
+                  onChange={(newVal) => {
+                    const updatedGoals = goals.map(g =>
+                      g.id === goal.id ? { ...g, difficulty: newVal } : g
+                    );
+                    setGoals(updatedGoals);
+                  }}
                 />
               </div>
 
@@ -448,9 +461,12 @@ const ProjectTracker: React.FC = () => {
                 <input
                   type="date"
                   value={goal.deadline.split('T')[0]}
-                  onChange={(e) => setGoals(goals.map(g =>
-                    g.id === goal.id ? { ...g, deadline: new Date(e.target.value).toISOString() } : g
-                  ))}
+                  onChange={(e) => {
+                    const updatedGoals = goals.map(g =>
+                      g.id === goal.id ? { ...g, deadline: new Date(e.target.value).toISOString() } : g
+                    );
+                    setGoals(updatedGoals);
+                  }}
                   className="w-full bg-gray-800 rounded p-2 text-sm"
                 />
               </div>
@@ -459,16 +475,19 @@ const ProjectTracker: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <h3 className="text-xs sm:text-sm font-semibold">Tasks</h3>
                   <button
-                    onClick={() => setGoals(goals.map(g =>
-                      g.id === goal.id ? {
-                        ...g,
-                        milestones: [...g.milestones, {
-                          id: Date.now(),
-                          name: 'New Task',
-                          completed: false
-                        }]
-                      } : g
-                    ))}
+                    onClick={() => {
+                      const updatedGoals = goals.map(g =>
+                        g.id === goal.id ? {
+                          ...g,
+                          milestones: [...g.milestones, {
+                            id: Date.now(),
+                            name: 'New Task',
+                            completed: false
+                          }]
+                        } : g
+                      );
+                      setGoals(updatedGoals);
+                    }}
                     className="p-1 hover:bg-gray-600 rounded"
                     aria-label="Add task"
                   >
@@ -488,24 +507,31 @@ const ProjectTracker: React.FC = () => {
                           )
                         };
                         updatedGoal.status = updateGoalStatus(updatedGoal);
-                        setGoals(goals.map(g =>
+                        const updatedGoals = goals.map(g =>
                           g.id === goal.id ? updatedGoal : g
-                        ));
+                        );
+                        setGoals(updatedGoals);
                       }}
-                      onUpdate={(name) => setGoals(goals.map(g => ({
-                        ...g,
-                        milestones: g.id === goal.id
-                          ? g.milestones.map(m =>
-                              m.id === milestone.id ? { ...m, name } : m
-                            )
-                          : g.milestones
-                      })))}
-                      onDelete={() => setGoals(goals.map(g => ({
-                        ...g,
-                        milestones: g.id === goal.id
-                          ? g.milestones.filter(m => m.id !== milestone.id)
-                          : g.milestones
-                      })))}
+                      onUpdate={(name) => {
+                        const updatedGoals = goals.map(g => ({
+                          ...g,
+                          milestones: g.id === goal.id
+                            ? g.milestones.map(m =>
+                                m.id === milestone.id ? { ...m, name } : m
+                              )
+                            : g.milestones
+                        }));
+                        setGoals(updatedGoals);
+                      }}
+                      onDelete={() => {
+                        const updatedGoals = goals.map(g => ({
+                          ...g,
+                          milestones: g.id === goal.id
+                            ? g.milestones.filter(m => m.id !== milestone.id)
+                            : g.milestones
+                        }));
+                        setGoals(updatedGoals);
+                      }}
                     />
                   ))}
                 </div>
@@ -528,12 +554,15 @@ const ProjectTracker: React.FC = () => {
                     <Note
                       key={note.id}
                       note={note}
-                      onDelete={() => setGoals(goals.map(g => ({
-                        ...g,
-                        notes: g.id === goal.id
-                          ? g.notes.filter(n => n.id !== note.id)
-                          : g.notes
-                      })))}
+                      onDelete={() => {
+                        const updatedGoals = goals.map(g => ({
+                          ...g,
+                          notes: g.id === goal.id
+                            ? g.notes.filter(n => n.id !== note.id)
+                            : g.notes
+                        }));
+                        setGoals(updatedGoals);
+                      }}
                     />
                   ))}
                 </div>
@@ -610,9 +639,12 @@ const ProjectTracker: React.FC = () => {
                     <span className="block text-xs sm:text-sm font-semibold mb-1">Level of difficulty</span>
                     <DifficultyIndicator
                       value={goal.difficulty}
-                      onChange={(newVal) => setGoals(goals.map(g =>
-                        g.id === goal.id ? { ...g, difficulty: newVal } : g
-                      ))}
+                      onChange={(newVal) => {
+                        const updatedGoals = goals.map(g =>
+                          g.id === goal.id ? { ...g, difficulty: newVal } : g
+                        );
+                        setGoals(updatedGoals);
+                      }}
                     />
                   </div>
 
