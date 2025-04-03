@@ -1,7 +1,8 @@
-import React, { useState, useRef, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useRef, ChangeEvent } from 'react';
 import { Plus, X, Star, Archive, Download, Upload } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
+import { useIndexedDB } from './useIndexedDB';
 
 interface MilestoneType {
   id: number;
@@ -28,30 +29,6 @@ interface Goal {
   archived: boolean;
   favorite: boolean;
 }
-
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue];
-};
 
 interface DifficultyIndicatorProps {
   value: number;
@@ -83,7 +60,8 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
 type SortOption = 'default' | 'alphabet' | 'date' | 'difficulty';
 
 const GoalTracker: React.FC = () => {
-  const [goals, setGoals] = useLocalStorage<Goal[]>('projectGoals', [{
+  // Verwende useIndexedDB statt useLocalStorage.
+  const [goals, setGoals] = useIndexedDB<Goal[]>('projectGoals', [{
     id: 1,
     name: 'New Goal',
     deadline: new Date().toISOString(),
@@ -104,7 +82,6 @@ const GoalTracker: React.FC = () => {
   const [dragOverGoalId, setDragOverGoalId] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragNodeRef = useRef<HTMLDivElement | null>(null);
-  const dragStartPosition = useRef({ x: 0, y: 0 });
   const [sortBy, setSortBy] = useState<SortOption>('default');
 
   const getActiveGoals = () => goals.filter(g => !g.archived);
@@ -192,9 +169,8 @@ const GoalTracker: React.FC = () => {
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, goalId: number, node: HTMLDivElement) => {
-    dragStartPosition.current = { x: e.clientX, y: e.clientY };
-    dragNodeRef.current = node;
     setDraggedGoalId(goalId);
+    dragNodeRef.current = node;
     setIsDragging(true);
     setTimeout(() => {
       if (dragNodeRef.current) {
@@ -207,7 +183,6 @@ const GoalTracker: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
     e.preventDefault();
-    e.stopPropagation();
     if (draggedGoalId === goalId) return;
     setDragOverGoalId(goalId);
     e.dataTransfer.dropEffect = 'move';
@@ -215,20 +190,17 @@ const GoalTracker: React.FC = () => {
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
     e.preventDefault();
-    e.stopPropagation();
     if (draggedGoalId === goalId) return;
     setDragOverGoalId(goalId);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragOverGoalId(null);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetGoalId: number) => {
     e.preventDefault();
-    e.stopPropagation();
     if (dragNodeRef.current) {
       dragNodeRef.current.style.opacity = '1';
     }
@@ -271,7 +243,7 @@ const GoalTracker: React.FC = () => {
     dragNodeRef.current = null;
   };
 
-  // New functions for export/import progress
+  // Neue Funktionen zum Export/Import des Fortschritts
   const handleExportProgress = () => {
     try {
       const exportObj = { goals };
@@ -338,7 +310,7 @@ const GoalTracker: React.FC = () => {
         </div>
       </div>
 
-      {/* New Export/Import Buttons */}
+      {/* Export/Import Progress Buttons */}
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
         <div className="flex flex-wrap gap-3 items-center">
           <button
@@ -403,11 +375,9 @@ const GoalTracker: React.FC = () => {
                   <input
                     type="text"
                     value={goal.name}
-                    onChange={(e) =>
-                      setGoals(goals.map(g =>
-                        g.id === goal.id ? { ...g, name: e.target.value } : g
-                      ))
-                    }
+                    onChange={(e) => setGoals(goals.map(g =>
+                      g.id === goal.id ? { ...g, name: e.target.value } : g
+                    ))}
                     className="bg-transparent font-semibold text-sm sm:text-base outline-none max-w-full"
                   />
                 </div>
@@ -607,7 +577,7 @@ const GoalTracker: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this archived goal?")) {
+                            if (window.confirm("Are you sure you want to delete this goal?")) {
                               deleteGoal(goal.id);
                             }
                           }}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Download, Upload } from 'lucide-react';
 import Note from '../shared/Note';
 
@@ -18,31 +18,82 @@ interface MoodEntry {
   }[];
 }
 
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
+const DB_NAME = 'moodTrackerDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'moodEntries';
 
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function
-        ? value(storedValue)
-        : value;
+const useIndexedDB = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
+  const [data, setData] = useState<T>(initialValue);
 
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
+  useEffect(() => {
+    let db: IDBDatabase;
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (event) => {
+      db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const getRequest = store.get(key);
+
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          setData(getRequest.result.value);
+        } else {
+          const writeTransaction = db.transaction(STORE_NAME, 'readwrite');
+          const writeStore = writeTransaction.objectStore(STORE_NAME);
+          writeStore.put({ id: key, value: initialValue });
+        }
+      };
+
+      getRequest.onerror = (e) => console.error('Error reading from IndexedDB', e);
+    };
+
+    request.onerror = (event) => {
+      console.error('Error opening IndexedDB', (event.target as IDBOpenDBRequest).error);
+    };
+
+    return () => {
+      if (db) db.close();
+    };
+  }, [key, initialValue]);
+
+  const saveData = (valueOrFunction: T | ((val: T) => T)) => {
+    const newValue = valueOrFunction instanceof Function ? valueOrFunction(data) : valueOrFunction;
+    setData(newValue);
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const putRequest = store.put({ id: key, value: newValue });
+
+      putRequest.onsuccess = () => {
+        console.log('Data successfully saved to IndexedDB');
+      };
+
+      putRequest.onerror = (e) => {
+        console.error('Error saving to IndexedDB', e);
+      };
+
+      transaction.oncomplete = () => {
+        db.close();
+      };
+    };
+
+    request.onerror = (event) => {
+      console.error('Error opening IndexedDB for saving', (event.target as IDBOpenDBRequest).error);
+    };
   };
 
-  return [storedValue, setValue];
+  return [data, saveData];
 };
 
 const exportMoodEntries = (entries: MoodEntry[]) => {
@@ -54,8 +105,33 @@ const exportMoodEntries = (entries: MoodEntry[]) => {
   link.click();
 };
 
+const importMoodEntries = (setEntries: (entries: MoodEntry[]) => void) => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+
+  input.onchange = (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedEntries = JSON.parse(e.target?.result as string) as MoodEntry[];
+        setEntries(importedEntries);
+      } catch (error) {
+        console.error('Error parsing imported file:', error);
+        alert('Invalid file format. Please select a valid backup file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  input.click();
+};
+
 const MoodTracker: React.FC = () => {
-  const [entries, setEntries] = useLocalStorage<MoodEntry[]>('moodEntries', []);
+  const [entries, setEntries] = useIndexedDB<MoodEntry[]>('moodEntriesData', []);
   const [filter, setFilter] = useState<string>('all');
 
   const moodLevels = [
@@ -118,7 +194,7 @@ const MoodTracker: React.FC = () => {
             ))}
           </select>
 
-          {/* Export-Button */}
+          {/* Export/Import Buttons */}
           <div className="flex space-x-2">
             <button
               onClick={() => exportMoodEntries(entries)}
@@ -126,6 +202,13 @@ const MoodTracker: React.FC = () => {
               title="Export Entries"
             >
               <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => importMoodEntries(setEntries)}
+              className="flex items-center space-x-1 p-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+              title="Import Entries"
+            >
+              <Upload className="w-4 h-4" />
             </button>
           </div>
         </div>

@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { Plus, X, Star, Archive } from 'lucide-react';
+import React, { useState, useRef, ChangeEvent } from 'react';
+import { Plus, X, Star, Archive, Download, Upload } from 'lucide-react';
 import Note from '../shared/Note';
 import Milestone from '../shared/Milestone';
+import { useIndexedDB } from './useIndexedDB';
 
 interface Goal {
   id: number;
@@ -24,32 +25,6 @@ interface Goal {
   archived: boolean;
   favorite: boolean;
 }
-
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function
-        ? value(storedValue)
-        : value;
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue];
-};
 
 interface DifficultyIndicatorProps {
   value: number;
@@ -83,7 +58,7 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
 type SortOption = 'default' | 'alphabet' | 'date' | 'difficulty';
 
 const ProjectTracker: React.FC = () => {
-  const [goals, setGoals] = useLocalStorage<Goal[]>('projectTrackerGoals', [{
+  const [goals, setGoals] = useIndexedDB<Goal[]>('projectTrackerGoals', [{
     id: 1,
     name: 'Project Name',
     deadline: new Date().toISOString(),
@@ -131,7 +106,7 @@ const ProjectTracker: React.FC = () => {
     return allCompleted ? 'Done' : (hasStarted ? 'In Progress' : 'Not Started');
   };
 
-  const handleImageUpload = (goalId: number, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (goalId: number, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -197,16 +172,13 @@ const ProjectTracker: React.FC = () => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, goalId: number, node: HTMLDivElement) => {
     dragStartPosition.current = { x: e.clientX, y: e.clientY };
     dragNodeRef.current = node;
-
     setDraggedGoalId(goalId);
     setIsDragging(true);
-
     setTimeout(() => {
       if (dragNodeRef.current) {
         dragNodeRef.current.style.opacity = '0.4';
       }
     }, 0);
-
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(goalId));
   };
@@ -214,67 +186,53 @@ const ProjectTracker: React.FC = () => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (draggedGoalId === goalId) return;
-
     setDragOverGoalId(goalId);
-
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>, goalId: number) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (draggedGoalId === goalId) return;
-
     setDragOverGoalId(goalId);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
     setDragOverGoalId(null);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetGoalId: number) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (dragNodeRef.current) {
       dragNodeRef.current.style.opacity = '1';
     }
-
     if (draggedGoalId === null || draggedGoalId === targetGoalId) {
       setIsDragging(false);
       setDraggedGoalId(null);
       setDragOverGoalId(null);
       return;
     }
-
     const activeGoals = getActiveGoals();
     const draggedGoalIndex = activeGoals.findIndex(g => g.id === draggedGoalId);
     const targetGoalIndex = activeGoals.findIndex(g => g.id === targetGoalId);
-
     if (draggedGoalIndex < 0 || targetGoalIndex < 0) {
       setIsDragging(false);
       setDraggedGoalId(null);
       setDragOverGoalId(null);
       return;
     }
-
     const newActiveGoals = [...activeGoals];
     const [removed] = newActiveGoals.splice(draggedGoalIndex, 1);
     newActiveGoals.splice(targetGoalIndex, 0, removed);
-
     newActiveGoals.forEach((goal, idx) => {
       goal.order = idx + 1;
     });
-
     const archivedGoals = getArchivedGoals();
     setGoals([...newActiveGoals, ...archivedGoals]);
-
     setIsDragging(false);
     setDraggedGoalId(null);
     setDragOverGoalId(null);
@@ -282,15 +240,52 @@ const ProjectTracker: React.FC = () => {
 
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-
     if (dragNodeRef.current) {
       dragNodeRef.current.style.opacity = '1';
     }
-
     setIsDragging(false);
     setDraggedGoalId(null);
     setDragOverGoalId(null);
     dragNodeRef.current = null;
+  };
+
+  // New export/import functions using IndexedDB state
+  const handleExportProgress = () => {
+    try {
+      const exportObj = { goals };
+      const jsonStr = JSON.stringify(exportObj, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'project_progress_backup.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error during export');
+      console.error(err);
+    }
+  };
+
+  const handleImportProgress = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = reader.result as string;
+        const data = JSON.parse(json);
+        if (!Array.isArray(data.goals)) {
+          throw new Error('Invalid JSON format: goals missing');
+        }
+        setGoals(data.goals);
+        alert('Import successful!');
+      } catch (err) {
+        alert('Error during import!');
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
   };
 
   const activeGoals = sortGoals(getActiveGoals());
@@ -307,8 +302,8 @@ const ProjectTracker: React.FC = () => {
             className="bg-gray-800 text-white p-2 rounded text-sm"
           >
             <option value="default">Standard</option>
-            <option value="alphabet">Alphabetisch</option>
-            <option value="date">Nach Datum</option>
+            <option value="alphabet">Alphabetically</option>
+            <option value="date">By Date</option>
             <option value="difficulty">Level of difficulty</option>
           </select>
           <button
@@ -321,15 +316,29 @@ const ProjectTracker: React.FC = () => {
         </div>
       </div>
 
+      {/* Export/Import Progress Buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <div className="flex flex-wrap gap-3 items-center">
+          <button
+            onClick={handleExportProgress}
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Download size={18} /> Export Progress
+          </button>
+          <label className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer">
+            <Upload size={18} /> Import Progress
+            <input type="file" accept=".json" onChange={handleImportProgress} className="hidden" />
+          </label>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {activeGoals.map(goal => {
           const progress = goal.milestones.length
-            ? Math.round(goal.milestones.filter(m => m.completed).length / goal.milestones.length * 100)
+            ? Math.round((goal.milestones.filter(m => m.completed).length / goal.milestones.length) * 100)
             : 0;
-
           const isDragged = draggedGoalId === goal.id;
           const isDraggedOver = dragOverGoalId === goal.id;
-
           return (
             <div
               key={goal.id}
@@ -353,10 +362,7 @@ const ProjectTracker: React.FC = () => {
                   className="hidden"
                   id={`goal-${goal.id}`}
                 />
-                <label
-                  htmlFor={`goal-${goal.id}`}
-                  className="cursor-pointer block"
-                >
+                <label htmlFor={`goal-${goal.id}`} className="cursor-pointer block">
                   {goal.image ? (
                     <img
                       src={goal.image}
@@ -387,7 +393,6 @@ const ProjectTracker: React.FC = () => {
                   <span className="text-xs px-1 py-1 rounded bg-gray-800 whitespace-nowrap">
                     {goal.status}
                   </span>
-
                   <div className="flex items-center">
                     <button
                       onClick={() => toggleFavoriteGoal(goal.id)}
@@ -588,7 +593,7 @@ const ProjectTracker: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm("Möchtest du dieses archivierte Projekt wirklich löschen?")) {
+                            if (window.confirm('Möchtest du dieses archivierte Projekt wirklich löschen?')) {
                               deleteGoal(goal.id);
                             }
                           }}

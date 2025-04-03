@@ -1,38 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Download, Upload } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
+import { useIndexedDB } from './useIndexedDB'; // Importieren des useIndexedDB hooks
 
 interface Category {
   name: string;
   value: number;
 }
 
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue];
-};
-
 const LifeEQTracker: React.FC = () => {
-  const [categories, setCategories] = useLocalStorage<Category[]>('lifeEqCategories', [
+  // LocalStorage durch IndexedDB ersetzen
+  const [categories, setCategories] = useIndexedDB<Category[]>('lifeEqCategories', [
     { name: 'Health', value: 8 },
     { name: 'Relationships', value: 7 },
     { name: 'Career', value: 6 },
