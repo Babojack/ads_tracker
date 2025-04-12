@@ -24,7 +24,7 @@ const STORE_NAME = 'moodEntries';
 
 const useIndexedDB = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [data, setData] = useState<T>(initialValue);
-
+//Diese Stück hier werde ich auch löschen müssen.. leider
   useEffect(() => {
     let db: IDBDatabase;
     const request = indexedDB.open(DB_NAME, DB_VERSION);

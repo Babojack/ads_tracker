@@ -56,7 +56,7 @@ const DifficultyIndicator: React.FC<DifficultyIndicatorProps> = ({ value, onChan
     </div>
   );
 };
-
+//Ich werde diesen Code hier löschen
 type SortOption = 'default' | 'alphabet' | 'date' | 'difficulty';
 
 const GoalTracker: React.FC = () => {
