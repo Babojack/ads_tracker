@@ -21,7 +21,7 @@ interface MoodEntry {
 const DB_NAME = 'moodTrackerDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'moodEntries';
-
+//Das hat mir leider nicht so gut gefallen, da ich nicht wusste wie ich das machen sollte.
 const useIndexedDB = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [data, setData] = useState<T>(initialValue);
 //Diese Stück hier werde ich auch löschen müssen.. leider
